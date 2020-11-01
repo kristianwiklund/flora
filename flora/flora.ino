@@ -80,7 +80,7 @@ void connectMqtt() {
   client.setServer(MQTT_HOST, MQTT_PORT);
 
   while (!client.connected()) {
-    if (!client.connect(MQTT_CLIENTID, MQTT_USERNAME, MQTT_PASSWORD)) {
+    if (!client.connect(MQTT_CLIENTID, MQTT_USERNAME, MQTT_PASSWORD, WILLTOPIC, WILLQOS, WILLRETAIN, WILLMESSAGE)) {
       Serial.print("MQTT connection failed:");
       Serial.print(client.state());
       Serial.println("Retrying...");
@@ -212,13 +212,14 @@ bool readFloraDataCharacteristic(BLERemoteService* floraService, String baseTopi
   }
 
   char buffer[64];
+  connectMqtt(); // in case we are not
 
   snprintf(buffer, 64, "%f", temperature);
   client.publish((baseTopic + "temperature").c_str(), buffer); 
   snprintf(buffer, 64, "%d", moisture); 
   client.publish((baseTopic + "moisture").c_str(), buffer);
   snprintf(buffer, 64, "%d", light);
-  client.publish((baseTopic + "light").c_str(), buffer);
+  client.publish((baseTopic + "brightness").c_str(), buffer);
   snprintf(buffer, 64, "%d", conductivity);
   client.publish((baseTopic + "conductivity").c_str(), buffer);
 
@@ -319,7 +320,7 @@ void hibernate() {
 }
 
 void delayedHibernate(void *parameter) {
-  delay(EMERGENCY_HIBERNATE*1000); // delay for five minutes
+  delay(EMERGENCY_HIBERNATE*1000); 
   Serial.println("Something got stuck, entering emergency hibernate...");
   hibernate();
 }
@@ -329,8 +330,7 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
 
-  // increase boot count
-  bootCount++;
+
 
   // create a hibernate task in case something gets stuck
   xTaskCreate(delayedHibernate, "hibernate", 4096, NULL, 1, &hibernateTaskHandle);
@@ -345,8 +345,14 @@ void setup() {
 
   // check if battery status should be read - based on boot count
   bool readBattery = ((bootCount % BATTERY_INTERVAL) == 0);
+  // increase boot count after the check to always read on first boot
+  bootCount++;
 
+ Serial.print("-- Boot count: ");
+  Serial.println(bootCount);
   // process devices
+
+  
   for (int i=0; i<deviceCount; i++) {
     int tryCount = 0;
     char* deviceMacAddress = FLORA_DEVICES[i];
